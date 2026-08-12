@@ -1,0 +1,15 @@
+# Credenciales
+.env
+*session.json
+
+# Contenido de Coursera — nunca redistribuir
+downloads/
+*_tree.json
+*.vtt
+*.srt
+*.mp4
+
+# Python
+__pycache__/
+*.pyc
+.venv/
