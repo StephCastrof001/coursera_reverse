@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -53,11 +54,24 @@ def safe_name(name: str, limit: int = 70) -> str:
     return (cleaned[:limit] or "sin-nombre").strip()
 
 
-def build_session() -> requests.Session:
+def load_cauth() -> str:
+    """Token desde env var o desde el store local.
+
+    La env var gana: en una VM sin browser no se puede correr
+    capture_session.py, y así el token no queda escrito en disco ajeno.
+    """
+    from_env = os.environ.get("COURSERA_CAUTH", "").strip()
+    if from_env:
+        log("INFO", "auth", f"token desde COURSERA_CAUTH (len={len(from_env)})")
+        return from_env
     if not SESSION_FILE.exists():
-        log("ERROR", "auth", f"falta {SESSION_FILE} — corre capture_session.py")
+        log("ERROR", "auth", "sin COURSERA_CAUTH y sin session.json")
         raise SystemExit(1)
-    cauth = json.loads(SESSION_FILE.read_text(encoding="utf-8"))["cauth"]
+    return json.loads(SESSION_FILE.read_text(encoding="utf-8"))["cauth"]
+
+
+def build_session() -> requests.Session:
+    cauth = load_cauth()
     session = requests.Session()
     session.cookies.set("CAUTH", cauth, domain=".coursera.org")
     session.headers.update(HEADERS)
