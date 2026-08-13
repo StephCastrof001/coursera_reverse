@@ -1,0 +1,229 @@
+"""
+Generador del Grafo Intermedio de Conocimiento Validado (KST + LXD)
+para 'Generative AI Governance in Financial Reporting'
+"""
+
+import json
+from pathlib import Path
+
+GRAPH_FILE = Path(__file__).parent / "course_knowledge_graph_genai_fin.json"
+
+KNOWLEDGE_GRAPH = {
+    "course_metadata": {
+        "slug": "gen-ai-gov-financial-reporting",
+        "title": "Generative AI Governance in Financial Reporting",
+        "institution": "Rutgers University & Coursera",
+        "instructor": "Huaxia Li",
+        "total_modules": 4,
+        "total_lessons": 18,
+        "primary_domain": "AI Governance, Financial Reporting & MLOps in Accounting"
+    },
+    "knowledge_nodes": {
+        "KP-LLM-ACCOUNTING-PARADIGM": {
+            "id": "KP-LLM-ACCOUNTING-PARADIGM",
+            "card_number": "01",
+            "name": "IA Generativa y LLMs en la Función Contable",
+            "module": 1,
+            "lesson": "03-Large Language Models and Accounting.es.vtt",
+            "prereqs": [],
+            "unlocks": ["KP-IMPLEMENTATION-METHODS-UI-API-RPA"],
+            "summary": "Diferenciación entre analítica predictiva tradicional y LLMs aplicados a texto financiero no estructurado.",
+            "card_columns": [
+                {
+                    "tag": "TRADICIONAL",
+                    "type": "det",
+                    "title": "Sistemas ERP / Reglas",
+                    "desc": "Validaciones determinísticas fijas sobre datos tabulares estructurados (cuentas por pagar/cobrar)."
+                },
+                {
+                    "tag": "LLMS / GEN-AI",
+                    "type": "sup",
+                    "title": "Modelos Masivos de Lenguaje",
+                    "desc": "Procesamiento y generación de lenguaje natural sobre notas al pie, contratos y reportes no estructurados."
+                },
+                {
+                    "tag": "GOBERNANZA",
+                    "type": "unsup",
+                    "title": "Marco de Auditoría",
+                    "desc": "Supervisión humana obligatoria (HITL) para mitigar alucinaciones y sesgos en revelaciones financieras."
+                }
+            ],
+            "analogy": "Un ERP tradicional es una calculadora veloz que suma columnas; un LLM es un analista júnior que lee 500 páginas de notas financieras y extrae los pasivos contingentes.",
+            "case_study": "En firmas de auditoría como KPMG o PwC, los LLMs analizan cientos de contratos de arrendamiento bajo NIIF 16 para extraer plazos y tasas implícitas en segundos.",
+            "pm_rule": "Nunca automatizar el 100% de la revelación contable sin un paso explícito de validación y trazabilidad de fuentes.",
+            "feynman": {
+                "scenario": "El CFO propone usar ChatGPT web sin API para que los contadores peguen borradores de estados financieros confidenciales. ¿Cuál es el riesgo de gobernanza crítico?",
+                "choices": [
+                    {
+                        "text": "A) Violación de confidencialidad y fuga de información material no pública (MNPI), ya que las versiones públicas de UI pueden usar los datos para reentrenar modelos.",
+                        "correct": True,
+                        "reason": "¡Exacto! Las políticas de gobernanza exigen APIs empresariales con cláusulas de cero retención de datos (Zero Data Retention)."
+                    },
+                    {
+                        "text": "B) Que la computadora gaste más batería al abrir el navegador.",
+                        "correct": False,
+                        "reason": "Incorrecto. El riesgo real es de cumplimiento normativo, privacidad y fuga de datos contables."
+                    }
+                ],
+                "citation": "[02:15] 03-Large Language Models and Accounting: 'La gobernanza de datos exige garantizar que los datos financieros sensibles no se utilicen para entrenar modelos públicos...'"
+            }
+        },
+
+        "KP-IMPLEMENTATION-METHODS-UI-API-RPA": {
+            "id": "KP-IMPLEMENTATION-METHODS-UI-API-RPA",
+            "card_number": "02",
+            "name": "Matriz de Implementación: UI vs API vs RPA vs Híbrido",
+            "module": 2,
+            "lesson": "09-Choosing the Right Method.es.vtt",
+            "prereqs": ["KP-LLM-ACCOUNTING-PARADIGM"],
+            "unlocks": ["KP-UNSTRUCTURED-FINANCIAL-EXTRACTION"],
+            "summary": "Comparativa de costo, latencia, seguridad y volumen entre interfaces de chat, llamadas REST API, bots RPA y pipelines integrados.",
+            "card_columns": [
+                {
+                    "tag": "MÉTODO UI",
+                    "type": "det",
+                    "title": "Chat / Asistente Visual",
+                    "desc": "Cero integración de código. Ideal para consultas ad-hoc o análisis exploratorio de un solo documento."
+                },
+                {
+                    "tag": "MÉTODO API",
+                    "type": "sup",
+                    "title": "Llamadas Programáticas",
+                    "desc": "Automatización masiva por lotes (Batch), parametrización estricta y cumplimiento de privacidad empresarial."
+                },
+                {
+                    "tag": "HÍBRIDO API+RPA",
+                    "type": "unsup",
+                    "title": "Automatización Integral",
+                    "desc": "El bot RPA descarga el PDF del portal gubernamental, la API del LLM extrae los datos y el RPA los inyecta en el ERP."
+                }
+            ],
+            "analogy": "UI es pedirle un plato al mesero en la mesa; API es ordenar 10,000 raciones directamente a la fábrica de empaque; API+RPA es la cinta transportadora que lleva la comida desde el camión al almacén.",
+            "case_study": "Para procesar 2,500 reportes ACFR anuales de municipios, un script RPA descarga los PDFs del portal EMMA y la API de GPT extrae los ratios de solvencia directamente a una base SQL.",
+            "pm_rule": "Si el volumen mensual supera los 50 documentos, la interfaz UI es inviable; se debe justificar el ROI de un pipeline API+RPA.",
+            "feynman": {
+                "scenario": "Un departamento de contraloría quiere extraer tablas de 1,200 facturas PDF mensuales. Un consultor sugiere contratar 5 pasantes para copiar y pegar en ChatGPT. ¿Qué arquitectura recomiendas?",
+                "choices": [
+                    {
+                        "text": "A) Un flujo integrado API + RPA que descargue automáticamente los PDFs, extraiga los campos clave mediante prompts estructurados en JSON y cargue la base de datos.",
+                        "correct": True,
+                        "reason": "¡Brillante! Reduce el tiempo de días a minutos, elimina el error humano de copiado y mantiene la trazabilidad auditable."
+                    },
+                    {
+                        "text": "B) Aceptar la sugerencia de los 5 pasantes porque ChatGPT UI es gratis.",
+                        "correct": False,
+                        "reason": "Error de escalabilidad y costo oculto de horas-hombre, además del riesgo de inconsistencia en los prompts."
+                    }
+                ],
+                "citation": "[01:40] 08-API-RPA Integration: 'La integración API-RPA permite la extracción de extremo a extremo sin intervención manual repetitiva...'"
+            }
+        },
+
+        "KP-UNSTRUCTURED-FINANCIAL-EXTRACTION": {
+            "id": "KP-UNSTRUCTURED-FINANCIAL-EXTRACTION",
+            "card_number": "03",
+            "name": "Extracción de Datos No Estructurados (ACFR & ESG)",
+            "module": 3,
+            "lesson": "14-An Example - Extracting Annual Comprehensive Financial Reports.es.vtt",
+            "prereqs": ["KP-IMPLEMENTATION-METHODS-UI-API-RPA"],
+            "unlocks": ["KP-GOVERNANCE-ACCURACY-ERROR-AUDIT"],
+            "summary": "Técnicas de preparación de datos, chunking y prompt engineering para reportes financieros gubernamentales y métricas de sostenibilidad ESG.",
+            "card_columns": [
+                {
+                    "tag": "PREPARACIÓN",
+                    "type": "det",
+                    "title": "Chunking & Sanitización",
+                    "desc": "División de reportes de 300 páginas en fragmentos contextuales preservando encabezados y notas."
+                },
+                {
+                    "tag": "REPORTES ACFR",
+                    "type": "sup",
+                    "title": "Finanzas Gubernamentales",
+                    "desc": "Extracción de fondos generales, deuda a largo plazo y obligaciones por pensiones no fondeadas."
+                },
+                {
+                    "tag": "MÉTRICAS ESG",
+                    "type": "unsup",
+                    "title": "Sostenibilidad y Clima",
+                    "desc": "Extracción de emisiones Alcance 1/2/3, diversidad del consejo y cumplimiento de normativas CSRD."
+                }
+            ],
+            "analogy": "Buscar datos en un reporte ESG de 400 páginas es como buscar una aguja en un pajar; el chunking guiado por prompts es un imán que atrae solo las cifras certificadas.",
+            "case_study": "Fondos de inversión ESG usan LLMs para escanear los reportes de sostenibilidad de 500 empresas y verificar si los compromisos de carbono neutralidad están respaldados por métricas auditadas.",
+            "pm_rule": "Siempre solicitar salida en formato JSON con 'schema enforcement' para evitar errores de tipo en las bases de datos contables.",
+            "feynman": {
+                "scenario": "Al extraer la cifra de 'Emisiones de Gases de Efecto Invernadero Alcance 1' de un reporte ESG, el LLM devuelve 'Muchas emisiones en 2024'. ¿Cómo corriges el prompt?",
+                "choices": [
+                    {
+                        "text": "A) Especificar en el system prompt: 'Extrae el valor numérico exacto en toneladas métricas de CO2 equivalente (tCO2e) y el número de página de referencia en formato JSON estricto {valor: number, unidad: string, pagina: number}'.",
+                        "correct": True,
+                        "reason": "¡Excelente técnica de Prompt Engineering financiero! Delimita el tipo de dato, la unidad métrica y la cita auditable."
+                    },
+                    {
+                        "text": "B) Pedirle al LLM que sea más inteligente y escriba un poema sobre el clima.",
+                        "correct": False,
+                        "reason": "No resuelve el problema de estructura de datos contable."
+                    }
+                ],
+                "citation": "[03:10] 12-Prompt Engineering Techniques: 'Los prompts financieros deben restringir el formato de salida y exigir la unidad de medida y la página fuente...'"
+            }
+        },
+
+        "KP-GOVERNANCE-ACCURACY-ERROR-AUDIT": {
+            "id": "KP-GOVERNANCE-ACCURACY-ERROR-AUDIT",
+            "card_number": "04",
+            "name": "Auditoría de Errores, Alucinaciones y Marco de Gobernanza",
+            "module": 4,
+            "lesson": "18-Limitation, Considerations and Summarization.es.vtt",
+            "prereqs": ["KP-UNSTRUCTURED-FINANCIAL-EXTRACTION"],
+            "unlocks": [],
+            "summary": "Protocolos de validación cruzada, detección de alucinaciones numéricas, auditoría de sesgo y gobernanza continua.",
+            "card_columns": [
+                {
+                    "tag": "ALUCINACIÓN",
+                    "type": "sup",
+                    "title": "Riesgo de Cifra Falsa",
+                    "desc": "El LLM genera un número plausible pero inexistente en el documento cuando falta contexto o hay ambigüedad."
+                },
+                {
+                    "tag": "VERIFICACIÓN",
+                    "type": "det",
+                    "title": "Grounding & Page Anchors",
+                    "desc": "Comprobar que cada dato extraído tenga una coincidencia textual exacta en la página fuente citada."
+                },
+                {
+                    "tag": "GOBERNANZA",
+                    "type": "unsup",
+                    "title": "Human-in-the-Loop (HITL)",
+                    "desc": "Revisión obligatoria por auditores humanos cuando el nivel de confianza del modelo sea inferior al umbral."
+                }
+            ],
+            "analogy": "Un LLM sin auditoría de gobernanza es como un contador que firma balances sin revisar los extractos bancarios de respaldo.",
+            "case_study": "En la auditoría de pasivos de pensiones municipales, un sistema con grounding detectó que el modelo había confundido el 'total de activos del plan' con el 'pasivo neto', evitando un error de $45 millones.",
+            "pm_rule": "Cualquier pipeline de IA Generativa en finanzas debe incluir métricas de precisión (Precision/Recall de extracción) y un registro inmutable de auditoría (Audit Trail).",
+            "feynman": {
+                "scenario": "Un auditor júnior confía a ciegas en un resumen generado por IA que afirma que una empresa no tiene litigios pendientes. Como Lead de Gobernanza de IA, ¿qué exiges?",
+                "choices": [
+                    {
+                        "text": "A) Exigir que el sistema proporcione la referencia exacta al pie de página o extracto del reporte donde se fundamenta la afirmación y realizar una verificación aleatoria (Sampling).",
+                        "correct": True,
+                        "reason": "¡Regla fundamental de Gobernanza Contable! La IA asiste la lectura, pero la responsabilidad fiduciaria y la verificación de fuentes recae en el profesional."
+                    },
+                    {
+                        "text": "B) Despedir al auditor y prohibir todas las computadoras en la empresa.",
+                        "correct": False,
+                        "reason": "Reacción desproporcionada que no implementa un marco de gobernanza constructivo."
+                    }
+                ],
+                "citation": "[02:50] 18-Limitation, Considerations and Summarization: 'La gobernanza eficaz combina la automatización del modelo con la supervisión y verificación humana continua...'"
+            }
+        }
+    }
+}
+
+def generate_graph():
+    GRAPH_FILE.write_text(json.dumps(KNOWLEDGE_GRAPH, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"[OK] Grafo de conocimiento generado con éxito en: {GRAPH_FILE}")
+
+if __name__ == "__main__":
+    generate_graph()
