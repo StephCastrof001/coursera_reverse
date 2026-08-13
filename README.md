@@ -1,83 +1,61 @@
 # coursera_reverse
 
-Extracción de tus propios cursos de Coursera vía su API interna: temario,
-transcripts y video. Recon documentado, no adivinado.
-
-**Tipo B** (login por formulario + cookie de sesión) según el framework de
-`klipso_reverse`.
+Extracción y modelado de conocimiento de tus propios cursos de Coursera vía su API interna: temario, transcripciones y grafos de conocimiento estructurados.
 
 ---
 
-## Por qué existe
+## 🎯 Objetivo y Alcance
 
-Los downloaders públicos de Coursera están muertos. `coursera-dl` lo dice en
-su propio README. La causa no es anti-bot: Coursera deprecó
-`onDemandCourseMaterials.v1` y nadie actualizó la constante.
+Este repositorio contiene las **herramientas genéricas de extracción y curación de transcripciones** (Tipo B con sesión `CAUTH`).
 
-Este repo sondea qué rutas siguen vivas **antes** de construir encima, y
-guarda las rutas en datos (`endpoints.json`) para que la próxima deprecación
-sea un fix de una línea.
-
-Estado verificado el **2026-08-12** contra un curso real:
-26 transcripts `.vtt`, 4 módulos, 0 archivos vacíos.
+> [!NOTE]
+> **Aislamiento de Casos de Estudio (`cases/`)**:
+> Los cursos extraídos se generan modularmente dentro de `cases/<slug>/` como cartuchos de conocimiento independientes.
+> 
+> * **Caso de Referencia Incluido**: `cases/duke_ml_foundations/` (Machine Learning Foundations for Product Managers - Duke University).
+> * **Otros Cursos y Contenido Privado**: Los cursos de producción o casos de negocio adicionales deben almacenarse en repositorios privados independientes.
 
 ---
 
-## Quickstart
+## 🚀 Quickstart
 
+1. **Instalación de dependencias**:
 ```bash
 pip install requests playwright
 python -m playwright install chromium
-
-python capture_session.py          # abre Chromium, logueate a mano
-python list_courses.py             # ver tus cursos y sus slugs
-python download_course.py <slug>            # dry-run: qué haría
-python download_course.py <slug> --execute  # baja transcripts
 ```
 
-Video (opt-in, pesado):
-
+2. **Captura de sesión y extracción**:
 ```bash
-python download_course.py <slug> --execute --videos --resolution 720p
+python capture_session.py             # Login manual para capturar cookie CAUTH
+python list_courses.py                # Ver cursos con enrollment activo
+python download_course.py <slug>      # Dry-run: muestra el plan de descarga
+python download_course.py <slug> --execute  # Descarga las transcripciones .vtt
 ```
 
-Diagnóstico cuando algo se rompe:
-
+3. **Generación del Grafo y Bóveda Modular**:
 ```bash
-python probe_endpoints.py <slug>   # tabla vivo/muerto de endpoints
+python process_course.py <slug>       # Estructura el caso dentro de cases/<slug>/
 ```
 
 ---
 
-## Estructura
+## 📁 Estructura del Repositorio
 
-| Archivo | Rol |
-|---|---|
-| `capture_session.py` | Browser handoff: login manual → cookie `CAUTH` verificada |
-| `list_courses.py` | Tus cursos vía `memberships.v1` |
-| `fetch_course.py` | Árbol del curso + sondeo de media de una lección |
-| `download_course.py` | Descarga. Dry-run por defecto |
-| `probe_endpoints.py` | Diagnóstico: qué rutas siguen vivas |
-| `endpoints.json` | Rutas verificadas — el fix va acá, no en el código |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Cómo funciona y por qué así |
-| [`RESEARCH.md`](RESEARCH.md) | Recon crudo: endpoints, 8 gotchas numerados |
-
----
-
-## Diseño en una línea
-
-**Transcripts-first.** Un curso pesa GB en mp4 y ~130 KB en `.vtt`. Para
-resumir o montar un RAG, el video no aporta señal extra. El default baja
-texto; el video es opt-in.
+| Archivo / Directorio | Rol |
+| :--- | :--- |
+| `capture_session.py` | Captura interactiva de la cookie `CAUTH`. |
+| `list_courses.py` | Consulta tus cursos activos vía `memberships.v1`. |
+| `fetch_course.py` | Obtiene el árbol y metadatos de lecciones del curso. |
+| `download_course.py` | Descarga transcripts `.vtt` (y video opt-in). |
+| `process_course.py` | Pipeline genérico para procesar y modelar cualquier curso. |
+| `probe_endpoints.py` | Diagnóstico de endpoints de Coursera. |
+| `endpoints.json` | Mapeo de URLs de la API de Coursera. |
+| `cases/duke_ml_foundations/` | **Caso de Referencia Único**: Grafo KST y Bóveda Markdown de Duke. |
 
 ---
 
-## Alcance
+## 🔒 Privacidad y Buenas Prácticas
 
-Para **cursos propios con enrollment activo**, uso personal.
-
-No evade DRM —no hay: Coursera ya ofrece descarga oficial por lección, esto
-automatiza hacerlo 18 veces. No evade paywall: sin enrollment la API no
-devuelve material. Incluye pausa entre requests. El material descargado no se
-redistribuye y el `.gitignore` bloquea `downloads/`, `*.vtt` y `*.mp4` para
-que no se filtre en un commit distraído.
+- Los tokens de sesión y descargas temporales masivas (`downloads/`) están protegidos en `.gitignore`.
+- El material privado o corporativo debe mantenerse en repositorios privados desacoplados.
