@@ -1,12 +1,11 @@
 """Descarga un curso propio de Coursera: estructura + transcripts + lecturas/enlaces (+ video opt-in).
 
 Uso:
-    python download_course.py <slug>                    # dry-run, ve qué haría
-    python download_course.py <slug> --execute          # baja transcripts y lecturas con links
-    python download_course.py <slug> --execute --fetch-links  # además raspa el texto de links públicos
-    python download_course.py <slug> --execute --videos --resolution 720p
+    python download_course.py slug                    # dry-run
+    python download_course.py slug --execute          # baja transcripts y lecturas
+    python download_course.py slug --execute --videos --resolution 720p
 
-Salida: downloads/<slug>/<NN-modulo>/<NN-item>.vtt (+ .reading.md, .mp4)
+Salida: downloads/slug/NN-modulo/NN-item.vtt (+ .reading.md, .mp4)
 """
 
 from __future__ import annotations
@@ -36,24 +35,21 @@ HEADERS = {
     ),
 }
 
-POLITE_DELAY_S = 0.6
+POLITE_DELAY_S = 0.5
 INVALID_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def log(level: str, action: str, message: str) -> None:
-    """Log estructurado: [TIMESTAMP] [LEVEL] [MODULE] [ACTION] mensaje."""
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
     print(f"[{stamp}] [{level}] [download] [{action}] {message}")
 
 
 def safe_name(name: str, limit: int = 70) -> str:
-    """Nombre de archivo válido en Windows, truncado por el límite de 260 chars."""
     cleaned = INVALID_CHARS.sub("", name).strip().rstrip(".")
     return (cleaned[:limit] or "sin-nombre").strip()
 
 
 def load_cauth() -> str:
-    """Token desde env var o desde el store local."""
     token = os.environ.get("COURSERA_CAUTH")
     if token:
         log("INFO", "auth", "Usando COURSERA_CAUTH desde variable de entorno")
@@ -88,7 +84,6 @@ def get_json(session: requests.Session, path: str) -> dict | None:
             log("ERROR", "http", "401 Unauthorized — la cookie CAUTH expiro")
             return None
         if response.status_code != 200:
-            log("WARN", "http", f"{response.status_code} en {path[:60]}")
             return None
         return response.json()
     except Exception as exc:
@@ -109,7 +104,6 @@ def fetch_materials(session: requests.Session, slug: str) -> tuple[str, dict] | 
 
 
 def build_plan(payload: dict) -> list[dict]:
-    """Aplana el árbol a una lista ordenada de lecciones (videos y lecturas/suplementos)."""
     linked = payload.get("linked") or {}
     modules = linked.get("onDemandCourseMaterialModules.v1") or []
     lessons = {x["id"]: x for x in linked.get("onDemandCourseMaterialLessons.v1") or []}
@@ -119,21 +113,27 @@ def build_plan(payload: dict) -> list[dict]:
     item_counter = 0
     for m_idx, module in enumerate(modules, 1):
         for lesson_id in module.get("lessonIds", []):
-            for item_id in lessons.get(lesson_id, {}).get("itemIds", []):
+            lesson_obj = lessons.get(lesson_id, {})
+            l_name = lesson_obj.get("name", "Leccion")
+            for item_id in lesson_obj.get("itemIds", []):
                 item = items.get(item_id, {})
                 summary = item.get("contentSummary") or {}
                 type_name = summary.get("typeName", "")
-                if type_name not in ("lecture", "supplement"):
-                    continue
+                
+                i_name = item.get("name") or item.get("slug") or l_name
+                if i_name in ("?", "unknown", "", None):
+                    i_name = f"{l_name} ({item_id})"
+
                 item_counter += 1
                 plan.append(
                     {
                         "item_id": item_id,
                         "item_num": item_counter,
-                        "name": item.get("name", "?"),
-                        "type": type_name,
+                        "name": i_name,
+                        "type": type_name or "unknown",
                         "module_idx": m_idx,
-                        "module_name": module.get("name", "?"),
+                        "module_name": module.get("name", "Modulo"),
+                        "lesson_name": l_name
                     }
                 )
     return plan
@@ -173,29 +173,22 @@ def fetch_media(session: requests.Session, course_id: str, item_id: str) -> dict
         url = pick_video_url(entry)
         if url:
             mp4[resolution] = url
-    return {"vtt": vtt, "mp4": mp4}
+    return {"vtt": vtt, "mp4": mp4, "name": video.get("name")}
 
 
 def fetch_supplement(session: requests.Session, course_id: str, item_id: str) -> dict | None:
-    """Obtiene el contenido de una lectura / suplemento de Coursera y extrae sus links."""
-    path = ENDPOINTS.get("supplement", "/api/onDemandSupplements.v1/{course_id}~{item_id}?includes=asset&fields=content").format(
-        course_id=course_id, item_id=item_id
-    )
+    path = ENDPOINTS["supplement"].format(course_id=course_id, item_id=item_id)
     payload = get_json(session, path)
     if not payload:
         return None
-    assets = (payload.get("linked") or {}).get("openCourseAssets.v1") or []
-    if not assets:
+    
+    elements = payload.get("elements", [])
+    if not elements:
         return None
+        
+    raw_cml = elements[0].get("content", {}).get("cml", "")
+    links = re.findall(r'href=[\"\'](https?://[^\"\'>]+)', raw_cml)
     
-    definition = assets[0].get("definition") or {}
-    raw_cml = definition.get("value", "")
-    html_content = (definition.get("renderableHtmlWithMetadata") or {}).get("renderableHtml", "")
-    
-    # Extraer URLs externas dentro del contenido
-    links = re.findall(r'href=["\'](https?://[^"\']+)["\']', raw_cml or html_content)
-    
-    # Limpiar CML a texto plano
     clean_text = re.sub(r'<[^>]+>', ' ', raw_cml)
     clean_text = html.unescape(clean_text)
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
@@ -225,22 +218,6 @@ def save_file(session: requests.Session, url: str, dest: Path) -> bool:
     return True
 
 
-def fetch_external_article_text(url: str) -> str:
-    """Descarga de forma segura el texto de un artículo público externo."""
-    try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-        if resp.status_code == 200:
-            text = re.sub(r'<script[^>]*>.*?</script>', ' ', resp.text, flags=re.DOTALL | re.IGNORECASE)
-            text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
-            text = re.sub(r'<[^>]+>', ' ', text)
-            text = html.unescape(text)
-            text = re.sub(r'\s+', ' ', text).strip()
-            return text[:4000] # Primeras 4k chars de extracto
-    except Exception:
-        pass
-    return ""
-
-
 def process(args, session: requests.Session, course_id: str, plan: list[dict]) -> None:
     root = Path(args.out) / args.slug
     saved = 0
@@ -248,95 +225,80 @@ def process(args, session: requests.Session, course_id: str, plan: list[dict]) -
         folder = root / safe_name(f"{entry['module_idx']:02d}-{entry['module_name']}")
         stem = safe_name(f"{entry['item_num']:02d}-{entry['name']}")
         
-        # Caso 1: LECTURA / SUPLEMENTO
-        if entry["type"] == "supplement":
+        # Probar Video primero
+        media = fetch_media(session, course_id, entry["item_id"])
+        if media and (media.get("vtt") or media.get("mp4")):
             if args.dry_run:
-                log("INFO", "plan", f"[LECTURA] {folder.name}/{stem}.reading.md")
+                log("INFO", "plan", f"[VIDEO] {folder.name}/{stem}.vtt")
                 continue
             
-            supp = fetch_supplement(session, course_id, entry["item_id"])
-            if supp:
-                reading_file = folder / f"{stem}.reading.md"
-                reading_file.parent.mkdir(parents=True, exist_ok=True)
-                
-                content_md = [
-                    f"# 📖 {entry['name']}",
-                    f"- **Módulo**: {entry['module_name']}",
-                    f"- **Tipo**: Lectura Complementaria Oficial",
-                    "",
-                    "## 📜 Contenido de la Lectura",
-                    supp["clean_text"],
-                    "",
-                    "## 🔗 Enlaces y Artículos Externos Citados"
-                ]
-                
-                for link in supp["links"]:
-                    content_md.append(f"- [{link}]({link})")
-                    if getattr(args, "fetch_links", False):
-                        article_snippet = fetch_external_article_text(link)
-                        if article_snippet:
-                            content_md.append(f"  > **Extracto**: {article_snippet[:300]}...")
-                
-                reading_file.write_text("\n".join(content_md), encoding="utf-8")
-                log("INFO", "saved", f"{reading_file.name} ({len(supp['links'])} enlaces)")
-                saved += 1
-            time.sleep(POLITE_DELAY_S)
-            continue
-
-        # Caso 2: LECTURE / VIDEO
-        if args.dry_run:
-            log("INFO", "plan", f"[VIDEO] {folder.name}/{stem}.vtt")
-            continue
-
-        media = fetch_media(session, course_id, entry["item_id"])
-        if not media:
-            log("WARN", "media", f"Sin media para '{entry['name']}'")
-            continue
-
-        for lang, url in media["vtt"].items():
-            dest = folder / f"{stem}.{lang}.vtt"
-            if save_file(session, url, dest):
-                saved += 1
-
-        if args.videos:
-            res = args.resolution
-            url = media["mp4"].get(res) or next(iter(media["mp4"].values()), None)
-            if url:
-                dest = folder / f"{stem}.{res}.mp4"
+            for lang, url in media["vtt"].items():
+                dest = folder / f"{stem}.{lang}.vtt"
                 if save_file(session, url, dest):
                     saved += 1
 
-        time.sleep(POLITE_DELAY_S)
+            if getattr(args, "videos", False):
+                res = getattr(args, "resolution", "720p")
+                url = media["mp4"].get(res) or next(iter(media["mp4"].values()), None)
+                if url:
+                    dest = folder / f"{stem}.{res}.mp4"
+                    if save_file(session, url, dest):
+                        saved += 1
 
-    if not args.dry_run:
-        log("INFO", "done", f"{saved} archivos procesados en {root}")
+            time.sleep(POLITE_DELAY_S)
+            continue
 
+        # Probar Suplemento / Lectura
+        supp = fetch_supplement(session, course_id, entry["item_id"])
+        if supp and supp.get("clean_text"):
+            if args.dry_run:
+                log("INFO", "plan", f"[LECTURA] {folder.name}/{stem}.reading.md")
+                continue
+                
+            reading_file = folder / f"{stem}.reading.md"
+            reading_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            content_md = [
+                f"# 📖 {entry['name']}",
+                f"- **Módulo**: {entry['module_name']}",
+                f"- **Lección**: {entry['lesson_name']}",
+                f"- **Tipo**: Lectura Oficial",
+                "",
+                "## 📜 Contenido",
+                supp["clean_text"],
+                "",
+                "## 🔗 Enlaces y Referencias"
+            ]
+            for link in supp["links"]:
+                content_md.append(f"- [{link}]({link})")
+            
+            reading_file.write_text("\n".join(content_md), encoding="utf-8")
+            log("INFO", "saved", f"{reading_file.name} ({len(supp['links'])} enlaces)")
+            saved += 1
+            time.sleep(POLITE_DELAY_S)
+            continue
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("slug", help="Slug del curso")
-    parser.add_argument("--execute", dest="dry_run", action="store_false", default=True, help="Descarga real")
-    parser.add_argument("--fetch-links", action="store_true", default=False, help="Descarga también el contenido de enlaces externos citados")
-    parser.add_argument("--videos", action="store_true", help="Descargar tambien video")
-    parser.add_argument("--resolution", default="720p", choices=["1080p", "720p", "540p", "360p", "240p"])
-    parser.add_argument("--out", default="downloads")
-    return parser.parse_args()
+    log("INFO", "done", f"{saved} archivos procesados en {root}")
 
 
 def main() -> None:
-    args = parse_args()
+    parser = argparse.ArgumentParser(description="Descarga cursos de Coursera")
+    parser.add_argument("slug", help="Slug del curso")
+    parser.add_argument("--execute", action="store_true", help="Ejecuta la descarga")
+    parser.add_argument("--out", default="downloads", help="Carpeta destino")
+    parser.add_argument("--videos", action="store_true", help="Descarga archivos MP4")
+    parser.add_argument("--resolution", default="720p", choices=["360p", "540p", "720p"], help="Resolución")
+    args = parser.parse_args()
+    args.dry_run = not args.execute
+
     cauth = load_cauth()
     session = build_session(cauth)
-
-    log("INFO", "init", f"Consultando curso '{args.slug}'...")
-    course_id, materials = fetch_materials(session, args.slug)
-    if not course_id or not materials:
+    course_id, payload = fetch_materials(session, args.slug)
+    if not course_id:
         sys.exit(1)
 
-    plan = build_plan(materials)
-    mode = "DRY-RUN" if args.dry_run else "EXECUTE"
-    log("INFO", "start", f"{mode} — {args.slug} ({len(plan)} lecciones: videos + lecturas)")
-
+    plan = build_plan(payload)
+    log("INFO", "start", f"{'EXECUTE' if args.execute else 'DRY-RUN'} — {args.slug} ({len(plan)} items)")
     process(args, session, course_id, plan)
 
 
